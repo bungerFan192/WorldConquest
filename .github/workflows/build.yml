@@ -1,0 +1,34 @@
+name: Build Nintendo 3DS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compile WorldConquest.3dsx
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:latest
+      options: --user 1001
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build 3DSX
+        run: make -j2
+
+      - name: Upload homebrew build
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorldConquest-3DSX
+          path: |
+            WorldConquest.3dsx
+            WorldConquest.smdh
+          if-no-files-found: error
