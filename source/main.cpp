@@ -9,26 +9,31 @@ int main(int argc, char* argv[]) {
 
     gfxInitDefault();
 
-    // Initialize citro3D now so the project is linked against the PICA200
-    // rendering library from the first build. The custom map renderer will
-    // be added in the next milestone.
+    // Bring up the PICA200 GPU library. The first milestone uses the
+    // console for diagnostics; the custom citro3D renderer comes next.
     if (!C3D_Init(C3D_DEFAULT_CMDBUF_SIZE)) {
         gfxExit();
         return 1;
     }
 
-    consoleInit(GFX_TOP, nullptr);
-    consoleInit(GFX_BOTTOM, nullptr);
+    PrintConsole topConsole;
+    PrintConsole bottomConsole;
 
+    consoleInit(GFX_TOP, &topConsole);
+    consoleInit(GFX_BOTTOM, &bottomConsole);
+
+    consoleSelect(&topConsole);
     printf("\x1b[1;1H WORLD CONQUEST");
     printf("\x1b[3;1H Nintendo 3DS");
     printf("\x1b[5;1H C++ / libctru / citro3D");
     printf("\x1b[8;1H Initial engine boot");
-    printf("\x1b[10;1H\x1b[32m citro3D initialized!\x1b[0m");
+    printf("\x1b[10;1H citro3D initialized!");
 
+    consoleSelect(&bottomConsole);
     printf("\x1b[1;1H WORLD CONQUEST");
     printf("\x1b[3;1H BOTTOM SCREEN");
     printf("\x1b[5;1H Touch controls will live here.");
+    printf("\x1b[8;1H Press START to exit.");
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -38,8 +43,9 @@ int main(int argc, char* argv[]) {
             break;
         }
 
-        // Rendering, world simulation and touch input are introduced in
-        // separate milestones to keep the first hardware build easy to debug.
+        gfxFlushBuffers();
+        gfxSwapBuffers();
+        gspWaitForVBlank();
     }
 
     C3D_Fini();
