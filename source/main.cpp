@@ -252,11 +252,19 @@ void drawMap() {
             const float py = static_cast<float>(MAP_Y + y * TILE);
             drawRect(px, py, TILE, TILE, color);
 
-            // Thin political borders.
+            // Political borders; selected country gets a bright outline.
+            const u32 edge = (id == selectedCountry)
+                ? C2D_Color32(255, 230, 80, 255) : border;
             if (x + 1 >= MAP_W || countryAt[y][x + 1] != id)
-                drawRect(px + TILE - 1, py, 1, TILE, border);
+                drawRect(px + TILE - 1, py, 1, TILE, edge);
             if (y + 1 >= MAP_H || countryAt[y + 1][x] != id)
-                drawRect(px, py + TILE - 1, TILE, 1, border);
+                drawRect(px, py + TILE - 1, TILE, 1, edge);
+            if (id == selectedCountry) {
+                if (x > 0 && countryAt[y][x - 1] != id)
+                    drawRect(px, py, 1, TILE, edge);
+                if (y > 0 && countryAt[y - 1][x] != id)
+                    drawRect(px, py, TILE, 1, edge);
+            }
         }
     }
 
