@@ -305,6 +305,8 @@ void startGame(int continent) {
     gameStarted = true;
 }
 
+void showGameInfo(const char* message);
+
 void updateTraining() {
     if (!trainingActive || trainingCountry < 0)
         return;
@@ -329,7 +331,7 @@ void startOrStopTraining() {
     }
 
     if (!countries[selectedCountry].controlled) {
-        attackSelected();
+        showGameInfo("Only your own countries can train.");
         return;
     }
 
