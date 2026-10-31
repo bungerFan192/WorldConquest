@@ -15,12 +15,14 @@ constexpr int TILE = 6;
 constexpr int MAP_X = 20;
 constexpr int MAP_Y = 24;
 constexpr int CONTINENT_COUNT = 4;
-constexpr int COUNTRIES_PER_CONTINENT = 8;
+constexpr int COUNTRIES_PER_CONTINENT = 4;
 constexpr int COUNTRY_COUNT = CONTINENT_COUNT * COUNTRIES_PER_CONTINENT;
 
+struct Point { float x, y; };
 struct Continent {
     const char* name;
-    float cx, cy, rx, ry;
+    Point outline[14];
+    int points;
 };
 
 struct Country {
@@ -31,10 +33,10 @@ struct Country {
 };
 
 const Continent continents[CONTINENT_COUNT] = {
-    {"AURELIA", 12.0f, 9.0f, 10.0f, 7.0f},
-    {"BOREALIS", 33.0f, 8.5f, 11.0f, 7.0f},
-    {"CYRUS", 49.0f, 22.0f, 9.0f, 8.5f},
-    {"DRAKON", 27.0f, 25.0f, 10.0f, 6.0f}
+    {"AURELIA", {{2,5},{5,2},{11,1},{16,4},{18,8},{16,12},{14,16},{9,17},{5,14},{2,11},{1,8}}, 11},
+    {"BOREALIS", {{21,2},{26,1},{31,3},{35,2},{39,5},{40,9},{37,12},{34,13},{30,11},{27,13},{23,10},{20,6}}, 12},
+    {"CYRUS", {{43,7},{47,4},{52,5},{57,9},{58,14},{55,18},{53,23},{49,24},{46,21},{44,17},{41,14},{42,10}}, 12},
+    {"DRAKON", {{17,20},{21,17},{26,18},{30,20},{34,19},{39,22},{41,26},{38,29},{33,30},{28,28},{24,30},{20,27},{16,24}}, 13}
 };
 
 const char* syllableA[] = {
@@ -102,14 +104,22 @@ void makeCountryName(char* output, size_t size, int index) {
     }
 }
 
+bool insidePolygon(float x, float y, const Continent& c) {
+    bool inside = false;
+    for (int i = 0, j = c.points - 1; i < c.points; j = i++) {
+        const Point& a = c.outline[i];
+        const Point& b = c.outline[j];
+        if (((a.y > y) != (b.y > y)) &&
+            (x < (b.x - a.x) * (y - a.y) / (b.y - a.y + 0.0001f) + a.x))
+            inside = !inside;
+    }
+    return inside;
+}
+
 bool isLandCell(int x, int y, int c) {
-    const Continent& shape = continents[c];
-    const float dx = (static_cast<float>(x) - shape.cx) / shape.rx;
-    const float dy = (static_cast<float>(y) - shape.cy) / shape.ry;
-    const float wobble =
-        0.075f * std::sin(x * 0.71f + y * 0.29f + c * 1.7f) +
-        0.045f * std::cos(x * 0.31f - y * 0.83f + c);
-    return dx * dx + dy * dy < 1.0f + wobble;
+    const float coast = 0.55f * std::sin(x * 1.7f + y * 0.83f + c * 2.1f) +
+                        0.30f * std::cos(x * 0.61f - y * 1.31f + c);
+    return insidePolygon(x + 0.5f, y + 0.5f, continents[c]) && coast > -0.60f;
 }
 
 void generateWorld() {
@@ -235,8 +245,8 @@ void drawMap() {
                 continue;
 
             u32 color = countries[id].color;
-            if (gameStarted && id == playerCountry)
-                color = C2D_Color32(255, 220, 55, 255);
+            if (countries[id].controlled)
+                color = C2D_Color32(255, 255, 255, 255);
 
             const float px = static_cast<float>(MAP_X + x * TILE);
             const float py = static_cast<float>(MAP_Y + y * TILE);
@@ -252,11 +262,7 @@ void drawMap() {
 
     // Highlight the chosen continent before the player starts.
     if (!gameStarted) {
-        const Continent& c = continents[menuCursor];
-        const float cx = MAP_X + c.cx * TILE;
-        const float cy = MAP_Y + c.cy * TILE;
-        const u32 marker = C2D_Color32(255, 255, 255, 255);
-        drawRect(cx - 2, cy - 2, 5, 5, marker);
+        // Continent selection is shown by its menu entry.
     }
 }
 
@@ -268,7 +274,7 @@ void showContinentMenu() {
     std::printf("\x1b[8;1H%s 2. BOREALIS (NORTH)", menuCursor == 1 ? ">" : " ");
     std::printf("\x1b[11;1H%s 3. CYRUS    (EAST)", menuCursor == 2 ? ">" : " ");
     std::printf("\x1b[14;1H%s 4. DRAKON   (SOUTH)", menuCursor == 3 ? ">" : " ");
-    std::printf("\x1b[19;1H32 countries - 8 per continent");
+    std::printf("\x1b[19;1H16 countries - 4 per continent");
     std::printf("\x1b[22;1HTap a continent or use UP/DOWN + A");
     std::printf("\x1b[24;1HSTART: exit");
 }
@@ -278,25 +284,62 @@ void startGame(int continent) {
     const int first = continent * COUNTRIES_PER_CONTINENT;
     playerCountry = first + randomInt(COUNTRIES_PER_CONTINENT);
     selectedCountry = playerCountry;
+    for (int i = 0; i < COUNTRY_COUNT; ++i) countries[i].controlled = false;
+    countries[playerCountry].controlled = true;
     gameStarted = true;
-    std::strncpy(countries[playerCountry].name, "YOUR NATION",
-                 sizeof(countries[playerCountry].name) - 1);
-    countries[playerCountry].name[sizeof(countries[playerCountry].name) - 1] = '\0';
 }
 
-void showGameInfo() {
+void showGameInfo(const char* message = nullptr) {
     consoleClear();
+    int owned = 0;
+    for (int i = 0; i < COUNTRY_COUNT; ++i) if (countries[i].controlled) ++owned;
     std::printf("\x1b[1;1H WORLD CONQUEST");
-    std::printf("\x1b[3;1H YOUR CONTINENT: %s", continents[selectedContinent].name);
-    std::printf("\x1b[5;1H YOUR NATION: %s", countries[playerCountry].name);
-    std::printf("\x1b[7;1H TERRITORIES: %d COUNTRIES",
-                COUNTRIES_PER_CONTINENT);
-    std::printf("\x1b[10;1H Yellow = your country");
-    std::printf("\x1b[13;1HWorld map: top screen");
-    std::printf("\x1b[16;1HYour country is placed randomly");
-    std::printf("\x1b[19;1Hwithin your chosen continent.");
-    std::printf("\x1b[22;1HB: choose another continent");
-    std::printf("\x1b[24;1HSTART: exit");
+    std::printf("\x1b[3;1H YOUR NATION: %s", countries[playerCountry].name);
+    std::printf("\x1b[5;1H CONTROLLED: %d / %d", owned, COUNTRY_COUNT);
+    std::printf("\x1b[8;1H SELECTED: %s", countries[selectedCountry].name);
+    std::printf("\x1b[10;1H POWER: %d", countries[selectedCountry].power);
+    std::printf("\x1b[13;1HUP/DOWN: choose country");
+    std::printf("\x1b[15;1HA: show selected country");
+    std::printf("\x1b[17;1HX: declare war / attack");
+    std::printf("\x1b[19;1HOnly border neighbours can be");
+    std::printf("\x1b[20;1Hattacked. White = your territory.");
+    std::printf("\x1b[22;1H%s", message ? message : "Conquer the world!");
+    std::printf("\x1b[24;1HB: back | START: exit");
+}
+
+bool adjacentToPlayer(int target) {
+    for (int y = 0; y < MAP_H; ++y) for (int x = 0; x < MAP_W; ++x) {
+        int id = countryAt[y][x];
+        if (id < 0 || !countries[id].controlled) continue;
+        if ((x > 0 && countryAt[y][x-1] == target) ||
+            (x+1 < MAP_W && countryAt[y][x+1] == target) ||
+            (y > 0 && countryAt[y-1][x] == target) ||
+            (y+1 < MAP_H && countryAt[y+1][x] == target)) return true;
+    }
+    return false;
+}
+
+void attackSelected() {
+    if (countries[selectedCountry].controlled) { showGameInfo("Already yours."); return; }
+    if (!adjacentToPlayer(selectedCountry)) { showGameInfo("Not a neighbour."); return; }
+    int strength = 0;
+    for (int i = 0; i < COUNTRY_COUNT; ++i)
+        if (countries[i].controlled) strength += countries[i].power;
+    int attack = strength / 2 + randomInt(45);
+    int defense = countries[selectedCountry].power + randomInt(45);
+    if (attack >= defense) {
+        countries[selectedCountry].controlled = true;
+        countries[selectedCountry].power = 55 + randomInt(40);
+        showGameInfo("Victory! Country conquered.");
+    } else {
+        countries[selectedCountry].power += 8;
+        showGameInfo("Defence held. Try again.");
+    }
+}
+
+void selectCountry(int id) {
+    selectedCountry = (id + COUNTRY_COUNT) % COUNTRY_COUNT;
+    showGameInfo();
 }
 
 void renderFrame() {
@@ -380,12 +423,19 @@ int main(int argc, char* argv[]) {
 
             if (!gameStarted && menuChanged)
                 showContinentMenu();
-        } else if (kDown & KEY_B) {
-            gameStarted = false;
-            selectedContinent = -1;
-            playerCountry = -1;
-            menuCursor = 0;
-            showContinentMenu();
+        } else {
+            if (kDown & KEY_B) {
+                gameStarted = false;
+                for (int i = 0; i < COUNTRY_COUNT; ++i) countries[i].controlled = false;
+                playerCountry = -1;
+                menuCursor = 0;
+                showContinentMenu();
+            } else {
+                if (kDown & KEY_UP) selectCountry(selectedCountry - 1);
+                if (kDown & KEY_DOWN) selectCountry(selectedCountry + 1);
+                if (kDown & KEY_A) showGameInfo();
+                if (kDown & KEY_X) attackSelected();
+            }
         }
 
         renderFrame();
