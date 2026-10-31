@@ -251,8 +251,8 @@ void drawMap() {
     }
 
     // Highlight the chosen continent before the player starts.
-    if (!gameStarted && selectedContinent >= 0) {
-        const Continent& c = continents[selectedContinent];
+    if (!gameStarted) {
+        const Continent& c = continents[menuCursor];
         const float cx = MAP_X + c.cx * TILE;
         const float cy = MAP_Y + c.cy * TILE;
         const u32 marker = C2D_Color32(255, 255, 255, 255);
