@@ -107,8 +107,8 @@ bool isLandCell(int x, int y, int c) {
     const float dx = (static_cast<float>(x) - shape.cx) / shape.rx;
     const float dy = (static_cast<float>(y) - shape.cy) / shape.ry;
     const float wobble =
-        0.075f * std::sinf(x * 0.71f + y * 0.29f + c * 1.7f) +
-        0.045f * std::cosf(x * 0.31f - y * 0.83f + c);
+        0.075f * std::sin(x * 0.71f + y * 0.29f + c * 1.7f) +
+        0.045f * std::cos(x * 0.31f - y * 0.83f + c);
     return dx * dx + dy * dy < 1.0f + wobble;
 }
 
@@ -180,7 +180,7 @@ void generateWorld() {
             country.continent = c;
             country.power = 70 + randomInt(61);
             country.color = hsvColor(
-                std::fmodf((id * 0.61803398875f) + 0.07f, 1.0f),
+                std::fmod((id * 0.61803398875f) + 0.07f, 1.0f),
                 0.62f, 0.92f
             );
         }
@@ -356,22 +356,29 @@ int main(int argc, char* argv[]) {
             break;
 
         if (!gameStarted) {
-            if (kDown & KEY_UP)
+            bool menuChanged = false;
+            if (kDown & KEY_UP) {
                 menuCursor = (menuCursor + CONTINENT_COUNT - 1) % CONTINENT_COUNT;
-            if (kDown & KEY_DOWN)
+                menuChanged = true;
+            }
+            if (kDown & KEY_DOWN) {
                 menuCursor = (menuCursor + 1) % CONTINENT_COUNT;
+                menuChanged = true;
+            }
             if (kDown & KEY_A)
                 chooseContinent(menuCursor);
 
             touchPosition touch;
             if (kDown & KEY_TOUCH) {
                 hidTouchRead(&touch);
-                const int row = touch.py / 60;
-                if (row >= 0 && row < CONTINENT_COUNT)
-                    chooseContinent(row);
+                if (touch.py >= 24 && touch.py < 120) {
+                    const int row = (touch.py - 24) / 24;
+                    if (row >= 0 && row < CONTINENT_COUNT)
+                        chooseContinent(row);
+                }
             }
 
-            if (!gameStarted)
+            if (!gameStarted && menuChanged)
                 showContinentMenu();
         } else if (kDown & KEY_B) {
             gameStarted = false;
