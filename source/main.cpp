@@ -60,6 +60,13 @@ int playerCountry = -1;
 int menuCursor = 0;
 bool gameStarted = false;
 
+// Training uses the system clock, so elapsed time is counted after the 3DS
+// wakes from sleep (for example, when the user closes and reopens the lid).
+bool trainingActive = false;
+int trainingCountry = -1;
+int trainingStartingPower = 0;
+time_t trainingStartedAt = 0;
+
 C3D_RenderTarget* topTarget = nullptr;
 
 int randomInt(int maxValue) {
@@ -298,7 +305,46 @@ void startGame(int continent) {
     gameStarted = true;
 }
 
+void updateTraining() {
+    if (!trainingActive || trainingCountry < 0)
+        return;
+
+    const time_t now = std::time(nullptr);
+    if (now <= trainingStartedAt)
+        return;
+
+    const double elapsedSeconds = std::difftime(now, trainingStartedAt);
+    const int gainedPower = static_cast<int>(elapsedSeconds / 60.0);
+    countries[trainingCountry].power =
+        (trainingStartingPower + gainedPower > 9999)
+        ? 9999 : trainingStartingPower + gainedPower;
+}
+
+void startOrStopTraining() {
+    if (trainingActive && trainingCountry == selectedCountry) {
+        updateTraining();
+        trainingActive = false;
+        showGameInfo("Training stopped. Power saved.");
+        return;
+    }
+
+    if (!countries[selectedCountry].controlled) {
+        attackSelected();
+        return;
+    }
+
+    if (trainingActive)
+        updateTraining();
+
+    trainingCountry = selectedCountry;
+    trainingStartingPower = countries[trainingCountry].power;
+    trainingStartedAt = std::time(nullptr);
+    trainingActive = true;
+    showGameInfo("Training started! Close the lid.");
+}
+
 void showGameInfo(const char* message = nullptr) {
+    updateTraining();
     consoleClear();
     int owned = 0;
     for (int i = 0; i < COUNTRY_COUNT; ++i) if (countries[i].controlled) ++owned;
@@ -307,11 +353,21 @@ void showGameInfo(const char* message = nullptr) {
     std::printf("\x1b[5;1H CONTROLLED: %d / %d", owned, COUNTRY_COUNT);
     std::printf("\x1b[8;1H SELECTED: %s", countries[selectedCountry].name);
     std::printf("\x1b[10;1H POWER: %d", countries[selectedCountry].power);
-    std::printf("\x1b[13;1HUP/DOWN: choose country");
-    std::printf("\x1b[15;1HA: show selected country");
-    std::printf("\x1b[17;1HX: declare war / attack");
-    std::printf("\x1b[19;1HOnly border neighbours can be");
-    std::printf("\x1b[20;1Hattacked. White = your territory.");
+    if (trainingActive && trainingCountry == selectedCountry) {
+        const int minutes = static_cast<int>(
+            std::difftime(std::time(nullptr), trainingStartedAt) / 60.0);
+        std::printf("\x1b[12;1H STATUS: TRAINING");
+        std::printf("\x1b[13;1H TRAINED: %d min", minutes);
+        std::printf("\x1b[15;1H+1 POWER / MINUTE");
+        std::printf("\x1b[17;1HX: stop training");
+        std::printf("\x1b[20;1HClose the lid; it keeps training.");
+    } else {
+        std::printf("\x1b[13;1HUP/DOWN: choose country");
+        std::printf("\x1b[15;1HA: show selected country");
+        std::printf("\x1b[17;1HX: war / train if yours");
+        std::printf("\x1b[19;1HOnly border neighbours can be");
+        std::printf("\x1b[20;1Hattacked. White = your territory.");
+    }
     std::printf("\x1b[22;1H%s", message ? message : "Conquer the world!");
     std::printf("\x1b[24;1HB: back | START: exit");
 }
@@ -329,7 +385,10 @@ bool adjacentToPlayer(int target) {
 }
 
 void attackSelected() {
-    if (countries[selectedCountry].controlled) { showGameInfo("Already yours."); return; }
+    if (countries[selectedCountry].controlled) {
+        startOrStopTraining();
+        return;
+    }
     if (!adjacentToPlayer(selectedCountry)) { showGameInfo("Not a neighbour."); return; }
     int strength = 0;
     for (int i = 0; i < COUNTRY_COUNT; ++i)
@@ -443,7 +502,13 @@ int main(int argc, char* argv[]) {
                 if (kDown & KEY_UP) selectCountry(selectedCountry - 1);
                 if (kDown & KEY_DOWN) selectCountry(selectedCountry + 1);
                 if (kDown & KEY_A) showGameInfo();
-                if (kDown & KEY_X) attackSelected();
+                if (kDown & KEY_X) {
+                    if (countries[selectedCountry].controlled)
+                        startOrStopTraining();
+                    else
+                        attackSelected();
+                }
+                updateTraining();
             }
         }
 
