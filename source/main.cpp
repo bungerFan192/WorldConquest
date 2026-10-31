@@ -30,6 +30,7 @@ struct Country {
     int continent;
     u32 color;
     int power;
+    bool controlled;
 };
 
 const Continent continents[CONTINENT_COUNT] = {
