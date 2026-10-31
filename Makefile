@@ -30,7 +30,7 @@ CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++17
 ASFLAGS  := -g $(ARCH)
 LDFLAGS  = -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS    := -lcitro3d -lctru -lm
+LIBS    := -lcitro2d -lcitro3d -lctru -lm
 LIBDIRS := $(CTRULIB)
 
 ifneq ($(BUILD),$(notdir $(CURDIR)))
